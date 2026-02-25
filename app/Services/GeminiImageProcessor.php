@@ -35,8 +35,8 @@ class GeminiImageProcessor implements ImageProcessorInterface
                             'parts' => [
                                 ['text' => $prompt],
                                 [
-                                    'inline_data' => [
-                                        'mime_type' => $mimeType,
+                                    'inlineData' => [
+                                        'mimeType' => $mimeType,
                                         'data' => $base64Image,
                                     ],
                                 ],
@@ -59,6 +59,14 @@ class GeminiImageProcessor implements ImageProcessorInterface
 
         $data = $response->json();
 
+        Log::info('Gemini API response structure', [
+            'keys' => array_keys($data),
+            'candidates_count' => count($data['candidates'] ?? []),
+            'first_parts' => isset($data['candidates'][0]['content']['parts'])
+                ? array_map(fn($p) => array_keys($p), $data['candidates'][0]['content']['parts'])
+                : 'no parts',
+        ]);
+
         return $this->extractAndSaveImage($data, $originalPath);
     }
 
@@ -69,9 +77,21 @@ class GeminiImageProcessor implements ImageProcessorInterface
         foreach ($candidates as $candidate) {
             $parts = $candidate['content']['parts'] ?? [];
             foreach ($parts as $part) {
-                if (isset($part['inline_data'])) {
-                    $imageData = base64_decode($part['inline_data']['data']);
-                    $mime = $part['inline_data']['mime_type'] ?? 'image/png';
+                // Check both camelCase and snake_case since API may use either
+                $inlineData = $part['inlineData'] ?? $part['inline_data'] ?? null;
+
+                if ($inlineData) {
+                    $base64 = $inlineData['data'] ?? null;
+                    $mime = $inlineData['mimeType'] ?? $inlineData['mime_type'] ?? 'image/png';
+
+                    if (!$base64) {
+                        Log::warning('Gemini: inlineData found but no data field', [
+                            'keys' => array_keys($inlineData),
+                        ]);
+                        continue;
+                    }
+
+                    $imageData = base64_decode($base64);
                     $ext = $this->mimeToExtension($mime);
 
                     $processedDir = 'processed/' . dirname($originalPath);
@@ -85,6 +105,10 @@ class GeminiImageProcessor implements ImageProcessorInterface
                 }
             }
         }
+
+        Log::error('Gemini: No image in response', [
+            'response_snippet' => json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+        ]);
 
         throw new \RuntimeException('No image returned from Gemini API');
     }

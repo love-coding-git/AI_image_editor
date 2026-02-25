@@ -6,6 +6,9 @@ export default {
         './resources/js/**/*.{ts,tsx}',
     ],
     theme: {
+        fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', 'sans-serif', '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'],
+        },
         extend: {
             colors: {
                 border: 'hsl(var(--border))',
